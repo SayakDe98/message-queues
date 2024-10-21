@@ -1,0 +1,161 @@
+What is message queue?
+It is a queue of messages.
+
+What is a queue?
+It is a data structure which follows FIFO order.
+
+Queues follow FIFO and order doesn't change for queue.
+
+Let's say we have created an E-Commerce website.
+Now let's say a customer visits our website and places an order.
+
+First we need to send an email to the customer.
+Then we need to process this order.
+Let's say another customer also books another product.
+Then he/she should also recieve an email.
+This emails must be sent in an order.
+They have queues for this.
+
+Let's say there is an email queue.
+Whenever an order is confirmed then the confirmation message 
+to be sent to the user goes in the queue.
+
+There will be a server as well which will pick up these messages,
+process them and send the respective emails in FIFO.
+
+For example if you have confirmed an order at 12:15pm then you might get
+the confirmation email at 12:16pm or 12:17pm and so on... depending on 
+how many emails the server has to send.
+
+Use cases of Message queues:
+1. Notification systems
+    Let's say there are 3 users interacting with the server. 
+    When we interact with a platform alot of events start occuring.
+    All these events will be pushed in the queue.
+
+    Let's say an user sends a friend request to another user.
+    Then we will push this notification in a queue.
+    We will have a worker which will pick up these messages from queue,
+    process them and end them.
+    In this case process is:
+    - send email
+    - in app notification
+    - push notification, so on...
+
+    In Linkedin if someone has DM'd us or has sent us a connection request
+    then it comes to our email as well.
+    How does this message reach us in email?
+    Firstly this message is pushed to a queue. After a while,
+    when the worker picks up this message then this message reaches me 
+    in FIFO.
+
+    Message queues are widely used in notifications.
+    Whatever notification events are there put those events in message queue,
+    then send the notifications to users.
+
+2. Order processing
+3. Automations (very widely used)
+    Let's talk about google ads. Google ads work on automation.
+    We can create campaigns in google ads.
+    Now we want to send emails to all users.
+    After 2 days send them a follow up email.
+    If they respond to that and send us an email in reply then send another email for replying them.
+
+    We need to make sure all these steps happen in an order.
+    This order must happen in FIFO principle.
+    For this we need to use message queues.
+
+    Let's say there is a platform where the videos uploaded are in 4k.
+    We must give them option of lower resolutions:
+    360p, 480p, 720p, 1080p.
+    Person who has less bandwidth video will use up all internet if he has
+    limited data usage policy from internet provider.
+
+    So whenever an user uploads a video we need to process them into 4 different formats.
+
+    First what happens is that this video gets pushed to s3 bucket.
+    Let's say 10 users are trying to upload their videos to s3.
+    So what should happen is that, the user who has uploaded his video the earliest,
+    that user's video should be sent for processing the earliest.
+
+    What happens in youtube?
+    Whenever we are uploading our video to youtube.
+    It takes some hours to upload it.
+    Youtube has some key for our video.
+    In global level people are pushing their videos.
+    Person who has pushed their video the earliest will get processed the earliest.
+
+    Let's say we are trying to push videos to s3.
+    In S3 when we pushed 10 videos to s3.
+    We create a queue inside redis. In this queue all the 10 videos
+    get pushed.
+    Actual videos don't get pushed but the video path gets pushed in it.
+
+    Let's say I have a budget to process only one video at a time because I have only 1 server.
+    This server listens to this queue. It takes the first video, it processes that video.
+    Video processing takes around 10 to 12 minutes depending on the video length.
+    After that it will publish it.
+    Then do same for rest of vidoes by following the order.
+    After all the 10 videos are published then all these vidoes
+    go to a different queue and then another server takes this vidoes
+    and send an email that all videos are processed.
+
+
+Dead Letter Queue:
+Let's say there is a queue. And there is a producer which produces messagess and there is a worker which
+processes these messages. Worker picks up 1 message at a time.
+Now producer produces 4 messages.
+1 and 2 get processed properly by worker but 3 gets some error.
+Due to this the whole worker gets shut down.
+Then worker respawns. It processed 4 and then finishes processing it.
+
+So when our worker shut down then that message 3 got lost as well.
+This is not good as that message can be critical as well.
+
+How to solve the above issue?
+If we get an error while procesing the that message will be sent to the end of the queue and the worker can now gracefully shut down.
+In this way message didn't get lost.
+But if this message is corrupted then we get infinte loop and AWS bill will be very high.
+One possible solution:
+Let the messages be processed by the worker if they are succesful then do normal operation
+If they fail when processing then put them inside an error queue.
+Then push the error message inside the notification queue, for admin
+to understand that something went wrong if even after retrying from error queue didn't work.
+
+This error queue is technically known as Dead Letter queue.
+So Dead Letter queue is a queue where we put failed messages so they get
+executed one extra time.
+
+We will use BullMQ which is very good message queue.
+It is built on top of Redis.
+
+BullMQ:
+We have Queue, Worker and Redis Server.
+Let's say we have a nodejs server.
+We create a queue inside it. Each queue has an id.
+Let the name of queue be notification.
+Inside the queue we can enqueue items.
+All the state of queue is maintained inside Redis.
+We have a worker as well. We need to give the same name to worker such
+that we can use this worker with notification queue.
+This worker gets connected to the same redis server used by the notification queue.
+We write some code inside the worker which gets executed to process the messages/items inside the queue.
+We can provide retryCount to queue. Dead Letter queue is handled by bullmq.
+
+
+Install bullmq for project and use docker for redis. I have redis installed so use it.
+If we run producer and then stop and rerun it then we get two producers and there will be two messages in redis.
+
+Install medis a gui client for redis for visualization of redis.
+We have a List inside it we have index and content.
+We also have events in stream.
+Then we have data in bull:email-queue:1 in hash.
+Similarly we have for bull:email-queue:2 in hash.
+So we have producers but no workers.
+
+We need to write producer and worker files as written.
+Then we can run producer file 1 or multiple and if you run worker.js 
+you will see worker will process the messages 1 by one
+If message is produced before worker is run then add a new terminal and run worker
+and you will see message is processed in older worker terminal.
+For any newer messages you get to see data in newer worker terminal.
